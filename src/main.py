@@ -76,8 +76,7 @@ def read_graph(slice_count):
     """
     col_index = ["x", "y", "time"]
     result = pd.read_table('email-Eu-core-temporal-Dept1.txt', sep=' ', header=None, names=col_index)
-    list_G = []
-    set_edge = set()
+    result.sort_values(by='time', inplace=True, ascending=True)
     max_time = result['time'].max()
     slice_num = max_time / slice_count + 1
     G_test = nx.Graph()
@@ -85,31 +84,73 @@ def read_graph(slice_count):
     # 添加所有节点到图中
     G_normal.add_nodes_from(result['x'].tolist())
     G_normal.add_nodes_from(result['y'].tolist())
-    for i in range(1, slice_count + 1):
-        G = nx.Graph()
-        # 添加所有节点到图中
-        G.add_nodes_from(result['x'].tolist())
-        G.add_nodes_from(result['y'].tolist())
-        # 获取某个时间切片所有节点对
-        edge = result[(result['time'] >= (i - 1) * slice_num) & (result['time'] < i * slice_num)].iloc[:, 0:2]
-        # 统计出现频率作为边权重
-        weighted_edge = edge.groupby(['x', 'y']).size().reset_index()
-        weighted_edge.rename(columns={0: 'frequency'}, inplace=True)
-        weighted_edge_tuples = [tuple(xi) for xi in weighted_edge.values]
-        G.add_weighted_edges_from(weighted_edge_tuples)
-        # 测试集
-        if i == slice_count:
-            G_test = G
-            for edge in G_test.edges():
-                if G_test[edge[0]][edge[1]]['weight'] > 1:
-                    G_test[edge[0]][edge[1]]['weight'] = 1
-            continue
-        weighted_edge['frequency'] = 1
-        edge_tuples = [tuple(xi) for xi in weighted_edge.values]
-        G_normal.add_weighted_edges_from(edge_tuples)
-        list_G.append(G)
+    # for i in range(1, slice_count + 1):
+    #     G = nx.Graph()
+    #     # 添加所有节点到图中
+    #     G.add_nodes_from(result['x'].tolist())
+    #     G.add_nodes_from(result['y'].tolist())
+    #     # 获取某个时间切片所有节点对
+    #     edge = result[(result['time'] >= (i - 1) * slice_num) & (result['time'] < i * slice_num)].iloc[:, 0:2]
+    #     # 统计出现频率作为边权重
+    #     weighted_edge = edge.groupby(['x', 'y']).size().reset_index()
+    #     weighted_edge.rename(columns={0: 'frequency'}, inplace=True)
+    #     weighted_edge_tuples = [tuple(xi) for xi in weighted_edge.values]
+    #     G.add_weighted_edges_from(weighted_edge_tuples)
+    #     # 测试集
+    #     if i == slice_count:
+    #         G_test = G
+    #         for edge in G_test.edges():
+    #             if G_test[edge[0]][edge[1]]['weight'] > 1:
+    #                 G_test[edge[0]][edge[1]]['weight'] = 1
+    #         continue
+    #     weighted_edge['frequency'] = 1
+    #     edge_tuples = [tuple(xi) for xi in weighted_edge.values]
+    #     G_normal.add_weighted_edges_from(edge_tuples)
 
-    return list_G, G_normal, G_test
+    test_data = result[(result['time'] >= (slice_count - 1) * slice_num) & (result['time'] < slice_count * slice_num)]
+    test_data['time'] = test_data['time'] / max_time
+    test_graph_time = nx.Graph()
+    test_edges_time = [tuple(xi) for xi in test_data.values]
+    test_graph_time.add_nodes_from(result['x'].tolist())
+    test_graph_time.add_nodes_from(result['y'].tolist())
+    test_graph_time.add_weighted_edges_from(test_edges_time)
+    # 存储活跃度
+    test_weighted_edge = test_data.groupby(['x', 'y']).size().reset_index()
+    test_weighted_edge.rename(columns={0: 'frequency'}, inplace=True)
+    max_frequent = test_weighted_edge['frequency'].max()
+    test_weighted_edge['frequency'] = test_weighted_edge['frequency'] / max_frequent
+    test_weighted_edge_tuples = [tuple(xi) for xi in test_weighted_edge.values]
+    test_G = nx.Graph()
+    # 添加所有节点到图中
+    test_G.add_nodes_from(result['x'].tolist())
+    test_G.add_nodes_from(result['y'].tolist())
+    test_G.add_weighted_edges_from(test_weighted_edge_tuples)
+
+    # 存储时间信息
+    # 归一化
+    result = result[(result['time'] < (slice_count - 1) * slice_num)]
+    result['time'] = result['time'] / max_time
+    graph_time = nx.Graph()
+    edges_time = [tuple(xi) for xi in result.values]
+    graph_time.add_nodes_from(result['x'].tolist())
+    graph_time.add_nodes_from(result['y'].tolist())
+    graph_time.add_weighted_edges_from(edges_time)
+    # 存储活跃度
+    weighted_edge = result.groupby(['x', 'y']).size().reset_index()
+    weighted_edge.rename(columns={0: 'frequency'}, inplace=True)
+    max_frequent = weighted_edge['frequency'].max()
+    weighted_edge['frequency'] = weighted_edge['frequency'] / max_frequent
+    weighted_edge_tuples = [tuple(xi) for xi in weighted_edge.values]
+    weighted_edge['frequency'] = 1
+    edge_tuples = [tuple(xi) for xi in weighted_edge.values]
+    G_normal.add_weighted_edges_from(edge_tuples)
+
+    G = nx.Graph()
+    # 添加所有节点到图中
+    G.add_nodes_from(result['x'].tolist())
+    G.add_nodes_from(result['y'].tolist())
+    G.add_weighted_edges_from(weighted_edge_tuples)
+    return G, G_normal, test_G, graph_time, test_graph_time
 
 
 def learn_embeddings(walks):
@@ -130,16 +171,17 @@ def main(args):
     temporary = True
     isEnron = False
     # temporary = False
-    if isEnron:
-        graphs, graph, graph_test = read_enron_graph()
-    else:
-        graphs, graph, graph_test = read_graph(20)
+    # if isEnron:
+    #     graphs, graph, graph_test = read_enron_graph()
+    #     graph_time = []
+    # else:
+    graphs, graph, graph_test, graph_time, test_graph_time = read_graph(20)
     print "读图时间", time.time()
-    G = node2vec.Graph(graphs, graph, 0.8, args.directed, args.p, args.q)
+    G = node2vec.Graph(graph, 0.8, args.directed, args.p, args.q)
     G.preprocess_transition_probs(temporary)
     walks = G.simulate_walks(args.num_walks, args.walk_length)
     model = learn_embeddings(walks)
-    predict = linkprediction.LinkPrediction(graph, graph_test, model)
+    predict = linkprediction.LinkPrediction(graphs, graph_test, model, graph_time, graphs, test_graph_time)
     predict.predict()
 
 

@@ -6,8 +6,7 @@ import logging
 
 
 class Graph:
-    def __init__(self, graphs, G, lam, is_directed, p, q):
-        self.graphs = graphs
+    def __init__(self, G, lam, is_directed, p, q):
         self.G = G
         self.lam = lam
         self.is_directed = is_directed
@@ -109,8 +108,6 @@ class Graph:
         Preprocessing of transition probabilities for guiding the random walks.
         """
         logging.info("Start Preprocessing of transition probabilities for guiding the random walks.")
-        if temporary:
-            self.get_time_matrix()
         G = self.G
         is_directed = self.is_directed
 
@@ -156,29 +153,6 @@ class Graph:
         self.alias_edges = alias_edges
         logging.info("End --- Preprocessing of transition probabilities for guiding the random walks.")
         return
-
-    def get_time_matrix(self):
-        # 初始化权重，lam是每个时刻图对下一个时刻的影响参数，指数衰减
-        lam = self.lam
-        n = len(self.G.nodes())
-        time_count = len(self.graphs)
-        matrix_time = np.zeros((n, n))
-        for g in self.graphs:
-            for edge in g.edges():
-                if g[edge[0]][edge[1]]['weight'] > 1:
-                    g[edge[0]][edge[1]]['weight'] = 1
-        # 计算权重
-        for i, g in enumerate(self.graphs):
-            t = np.array(nx.adjacency_matrix(g).todense())
-            matrix_time = matrix_time + lam ** (time_count - i) * t
-        rows, cols = matrix_time.shape
-        # 直接通过邻接矩阵转化为图会丢失节点信息
-        nodes = self.G.nodes()
-        for i in range(rows):
-            for j in range(cols):
-                if matrix_time[i][j] > 0:
-                    self.G.add_edge(nodes[i], nodes[j], weight=matrix_time[i][j])
-        return matrix_time
 
 
 def alias_setup(probs):

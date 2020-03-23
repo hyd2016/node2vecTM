@@ -9,10 +9,13 @@ import time
 
 
 class LinkPrediction:
-    def __init__(self, graph_train, graph_test, model):
+    def __init__(self, graph_train, graph_test, model, graph_time, graphs, test_graph_time):
         self.graph_train = graph_train
         self.graph_test = graph_test
         self.model = model
+        self.graph_time = graph_time
+        self.graphs = graphs
+        self.test_graph_time = test_graph_time
 
     def data_label(self, graph):
         """
@@ -29,8 +32,37 @@ class LinkPrediction:
             for j in range(i + 1, size_nodes):
                 feature = model[str(graph.nodes()[i])] * model[str(graph.nodes()[j])]
                 if graph.has_edge(i, j):
+                    feature = np.append(feature, self.graph_train[i][j]['weight'])
+                    feature = np.append(feature, self.graph_time[i][j]['weight'])
                     label.append(1)
                 else:
+                    feature = np.append(feature, 0)
+                    feature = np.append(feature, 0)
+                    label.append(0)
+                features.append(feature)
+        return features, label
+
+    def test_data_label(self, graph):
+        """
+        从图中和model计算边的类别和边的特征，如果便存在，则为1，不存在为0，特征为节点特征的积edge(u,v) = f(u)*f(v）
+        :param graph:
+        :return:
+        """
+        model = self.model
+        label = []
+        features = []
+        size_nodes = len(graph.nodes())
+        # 遍历图的所有可能的边
+        for i in range(size_nodes):
+            for j in range(i + 1, size_nodes):
+                feature = model[str(graph.nodes()[i])] * model[str(graph.nodes()[j])]
+                if graph.has_edge(i, j):
+                    feature = np.append(feature, self.graph_test[i][j]['weight'])
+                    feature = np.append(feature, self.test_graph_time[i][j]['weight'])
+                    label.append(1)
+                else:
+                    feature = np.append(feature, 0)
+                    feature = np.append(feature, 0)
                     label.append(0)
                 features.append(feature)
         return features, label
@@ -40,7 +72,7 @@ class LinkPrediction:
         通过SVM进行分类，并进行预测
         :return:
         """
-        svm_rbf = svm.SVC(C=0.8, gamma=200, class_weight='balanced')
+        svm_rbf = svm.SVC(C=0.8, gamma=20, class_weight='balanced')
         # svm_rbf = LogisticRegression(class_weight='balanced')
         train_feature, train_label = self.data_label(self.graph_train)
         train_feature = np.array(train_feature)
@@ -48,7 +80,7 @@ class LinkPrediction:
         tt = np.max(train_feature)
         train_feature = train_feature/np.max(train_feature)
         svm_rbf.fit(train_feature, train_label)
-        true_features, true_label = self.data_label(self.graph_test)
+        true_features, true_label = self.test_data_label(self.graph_test)
         true_features = np.array(true_features)
         true_features = true_features/np.max(true_features)
         predict_probability = svm_rbf.predict(true_features)
