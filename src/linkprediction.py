@@ -61,8 +61,8 @@ class LinkPrediction:
                     feature = np.append(feature, self.test_graph_time[i][j]['weight'])
                     label.append(1)
                 else:
-                    feature = np.append(feature, 0)
-                    feature = np.append(feature, 0)
+                    feature = np.append(feature, -1)
+                    feature = np.append(feature, -1)
                     label.append(0)
                 features.append(feature)
         return features, label
